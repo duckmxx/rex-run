@@ -41,8 +41,18 @@ class Dino {
 
         }
         
-        void draw() {
-            DrawRectangle(position.x, position.y, 50, 100, color);
+        Rectangle get_rect() const {
+            return Rectangle{
+                position.x,
+                position.y,
+                width,
+                height,
+                
+            };
+        }
+
+        void draw() const {
+            DrawRectangle(position.x, position.y, width, height, color);
         }
 };
 
@@ -53,7 +63,6 @@ class Cactus {
         Vector2 starting_pos;
         float width;
         float height;
-
         Color color;
 
 
@@ -74,11 +83,68 @@ class Cactus {
             }
         }
 
-        void draw() {
+        Rectangle get_rect() const {
+            return Rectangle{
+                position.x,
+                position.y,
+                width,
+                height,
+                
+            };
+        }
+
+        void draw() const {
             DrawRectangle(position.x, position.y, width, height, color);
         }
 
 };
+
+enum class GameState {
+    Menu,
+    Playing,
+    GameOver
+};
+
+void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, float gravity) {
+    switch(game_state) {
+        
+        case GameState::Menu:
+            if (IsKeyPressed(KEY_SPACE)) {
+                game_state = GameState::Playing;
+            }
+            break;
+        
+        case GameState::Playing:
+            dino.update(dt, gravity);
+            cactus.update(dt);
+            if (CheckCollisionRecs(dino.get_rect(), cactus.get_rect())) {
+                game_state = GameState::GameOver;
+            }
+            if (IsKeyPressed(KEY_R)) {
+                game_state = GameState::Playing;
+            }
+            break;
+        
+        case GameState::GameOver:
+            if (IsKeyPressed(KEY_R)) {
+                game_state = GameState::Playing;
+            }
+            break;
+        }
+}
+void draw_game(GameState game_state, const Dino& dino, const Cactus& cactus) {
+    switch(game_state) {
+
+        case GameState::Menu:
+            break;
+        case GameState::Playing:
+            dino.draw();
+            cactus.draw();
+            break;
+        case GameState::GameOver:
+            break;
+    }
+}
 
 
 float gravity = 1500.0f;
@@ -89,29 +155,29 @@ int main() {
     
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Rex Run");
     SetTargetFPS(60);
+    
     Dino dino(dino_start_velocity, dino_start_pos, 50, 100, true, BLACK);
     Cactus cacti(450, {1280, GROUND_Y - 75}, 25, 75, GREEN);
     
+    GameState game_state = GameState::Menu;
+
+
     while(!WindowShouldClose()) {
         float dt = GetFrameTime();
         
-        dino.update(dt, gravity);
-        cacti.update(dt);
+        update_game(game_state, dino, cacti, dt, gravity);
 
 
         BeginDrawing();
             ClearBackground(GRAY);
-            DrawLine(0, 600, 1280, 600, WHITE);
-            dino.draw();
-            cacti.draw();
+            DrawLine(0, GROUND_Y, SCREEN_WIDTH, GROUND_Y, WHITE);
+            draw_game(game_state, dino, cacti);
 
         EndDrawing();
     }
     
     CloseWindow();
     
-
-
 
     return 0;
 }
