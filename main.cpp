@@ -50,6 +50,8 @@ class Dino {
 
         void reset() {
             position = starting_pos;
+            velocity = {0.0f, 0.0f};
+            onGround = true;
         }
 
         Rectangle get_rect() const {
@@ -240,9 +242,10 @@ int main() {
 
         EndDrawing();
     }
-    
+    UnloadSound(hitsound);
+    UnloadSound(scoresound);
+    CloseAudioDevice();
     CloseWindow();
-    
 
     return 0;
 }
