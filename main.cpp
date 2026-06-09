@@ -142,7 +142,7 @@ enum class GameState {
     GameOver
 };
 
-void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, float gravity, float& gametime, Sound hitsound, Sound scoresound) {
+void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, float gravity, float& gametime, const Sound& hitsound, const Sound& scoresound) {
     switch(game_state) {
         
         case GameState::Menu:
