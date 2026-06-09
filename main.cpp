@@ -128,6 +128,7 @@ class Cactus {
         void reset() {
             velocity = starting_velocity;
             position = starting_pos;
+            scored = false;
         }
 
         void draw() const {
