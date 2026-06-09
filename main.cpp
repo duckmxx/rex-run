@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include <cmath>
 
 static constexpr int SCREEN_WIDTH = 1270;
 static constexpr int SCREEN_HEIGHT = 720;
@@ -10,15 +11,17 @@ class Dino {
     private:
         Vector2 velocity;
         Vector2 position;
+        Vector2 starting_pos;
         float width;
         float height;
         bool onGround;
         Color color;
 
     public:
-        Dino(Vector2 velocity, Vector2 position, float width, float height, bool onGround, Color color)
+        Dino(Vector2 velocity, Vector2 starting_pos, float width, float height, bool onGround, Color color)
             : velocity{velocity},
-              position{position}, 
+              position{starting_pos},
+              starting_pos{starting_pos}, 
               width{width},
               height{height}, 
               onGround{onGround},
@@ -41,6 +44,14 @@ class Dino {
 
         }
         
+        float get_x() const {
+            return position.x;
+        }
+
+        void reset() {
+            position = starting_pos;
+        }
+
         Rectangle get_rect() const {
             return Rectangle{
                 position.x,
@@ -65,7 +76,7 @@ class Cactus {
         float width;
         float height;
         Color color;
-
+        bool scored = false;
 
     public:
         Cactus(float starting_velocity, Vector2 startPos, float width, float height, Color color)
@@ -78,12 +89,25 @@ class Cactus {
               color{color}
         {}
 
-        void update(float dt, float accel) {
-            velocity += accel * dt;
+        void update(float dt, float gametime) {
+            velocity = starting_velocity + 150.0f * logf(gametime + 1.0f);
             position.x -= velocity * dt;
             if ((position.x + width) <= 0) {
                 position.x = starting_pos.x;
+                scored = false;
             }
+        }
+
+        void mark_scored() {
+            scored = true;
+        }
+        
+        bool has_scored() const {
+            return scored;
+        }
+
+        float get_right_x() const {
+            return position.x + width;
         }
 
         Rectangle get_rect() const {
@@ -96,6 +120,9 @@ class Cactus {
             };
         }
 
+        float get_velocity() const {
+            return velocity;
+        }
         void reset() {
             velocity = starting_velocity;
             position = starting_pos;
@@ -113,7 +140,7 @@ enum class GameState {
     GameOver
 };
 
-void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, float gravity, float accel) {
+void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, float gravity, float& gametime, Sound hitsound, Sound scoresound) {
     switch(game_state) {
         
         case GameState::Menu:
@@ -124,21 +151,28 @@ void update_game(GameState& game_state, Dino& dino, Cactus& cactus, float dt, fl
         
         case GameState::Playing:
             dino.update(dt, gravity);
-            cactus.update(dt, accel);
+            cactus.update(dt, gametime);
             if (CheckCollisionRecs(dino.get_rect(), cactus.get_rect())) {
                 game_state = GameState::GameOver;
+                PlaySound(hitsound);
+            }
+            if (!cactus.has_scored() && cactus.get_right_x() < dino.get_x()) {
+                PlaySound(scoresound);
+                cactus.mark_scored();
             }
             break;
         
         case GameState::GameOver:
             if (IsKeyPressed(KEY_SPACE)) {
+                gametime = 0.0f;
                 cactus.reset();
+                dino.reset();
                 game_state = GameState::Playing;
             }
             break;
         }
 }
-void draw_game(GameState game_state, const Dino& dino, const Cactus& cactus, int title_font_size, int title_text_length, int fun_font_size, int fun_text_length) {
+void draw_game(GameState game_state, const Dino& dino, const Cactus& cactus, int title_font_size, int title_text_length, int fun_font_size, int fun_text_length, int game_over_length, float gametime) {
     switch(game_state) {
 
         case GameState::Menu:
@@ -150,45 +184,59 @@ void draw_game(GameState game_state, const Dino& dino, const Cactus& cactus, int
         case GameState::Playing:
             dino.draw();
             cactus.draw();
+            DrawText(TextFormat("Speed: %.1f", cactus.get_velocity()), 20, 20, 20, BLACK);
+            DrawText(TextFormat("Score: %.1f", gametime), 20, 55, 40, RED);
             break;
         case GameState::GameOver:
             dino.draw();
             cactus.draw();
+            DrawText(TextFormat("Score: %.1f", gametime), 20, 55, 40, RED);
+            DrawText("Game Over!", (SCREEN_WIDTH - game_over_length) / 2, 50, title_font_size, BLACK);
+            DrawText("Press SPACE to run!", (SCREEN_WIDTH - fun_text_length) / 2, 100, fun_font_size, BLACK);
             break;
     }
 }
 
-float accel = 10.0f;
 float gravity = 2000.0f;
 Vector2 dino_start_pos = {180.0f, 500.0f};
 Vector2 dino_start_velocity = {0.0f, 0.0f};
 Vector2 cactus_start_pos = {1280, GROUND_Y - 75};
 
 int main() {
-    
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Rex Run");
+    InitAudioDevice();
     SetTargetFPS(60);
     
     Dino dino(dino_start_velocity, dino_start_pos, 50, 100, true, BLACK);
     Cactus cacti(450.0f, cactus_start_pos, 25, 75, GREEN);
     
+    float gametime = 0.0f;
+
     GameState game_state = GameState::Menu;
 
     int title_font_size = 50;
     int title_text_length = MeasureText("Rex Run", 50);
     int fun_font_size = 30;
     int fun_text_length = MeasureText("Press SPACE to run!", 30);
+    int game_over_length = MeasureText("Game Over!", title_font_size);
+
+    Sound hitsound = LoadSound("assets/hit.wav");
+    Sound scoresound = LoadSound("assets/score.wav");
 
     while(!WindowShouldClose()) {
         float dt = GetFrameTime();
         
-        update_game(game_state, dino, cacti, dt, gravity, accel);
+        if (game_state == GameState::Playing) {
+            gametime += dt;
+        }
+
+        update_game(game_state, dino, cacti, dt, gravity, gametime, hitsound, scoresound);
 
 
         BeginDrawing();
             ClearBackground(GRAY);
             DrawLine(0, GROUND_Y, SCREEN_WIDTH, GROUND_Y, WHITE);
-            draw_game(game_state, dino, cacti, title_font_size, title_text_length, fun_font_size, fun_text_length);
+            draw_game(game_state, dino, cacti, title_font_size, title_text_length, fun_font_size, fun_text_length, game_over_length, gametime);
 
         EndDrawing();
     }
